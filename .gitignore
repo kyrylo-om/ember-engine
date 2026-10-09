@@ -1,68 +1,66 @@
-# Prerequisites
-*.d
+# Personal files: any file or folder whose name starts with "_" is never committed
+_*
+# Third-party code is kept exactly as published, even files starting with "_"
+!third_party/**/_*
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# Personal folder: notes, drafts, context for AI assistants
+docs/personal/*
+!docs/personal/README.md
 
-# Precompiled Headers
-*.gch
-*.pch
+# Build output
+/build*/
+/cmake-build-*/
+/out/
 
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
-build/
-Build/
-build-*/
-
-# CMake generated files
+# CMake
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
+CTestTestfile.cmake
 Makefile
+Testing/
 install_manifest.txt
 compile_commands.json
+CMakeUserPresets.json
 
-# Temporary files
-*.tmp
-*.log
-*.bak
-*.swp
-
-# vcpkg
-vcpkg_installed/
-
-# debug information files
+# Compiled files
+*.o
+*.obj
+*.d
+*.gch
+*.pch
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.ilk
+*.pdb
 *.dwo
 
-# test output & cache
-Testing/
+# Editors and tools
+.vscode/
+.idea/
+.vs/
+*.user
+*.swp
+*~
 .cache/
+*.log
+*.tmp
+*.bak
+
+# AI assistants: personal instructions and settings
+/AGENTS.md
+/CLAUDE.md
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Operating systems
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,12 @@
+# Text files are stored and checked out with LF line endings on every system
+* text=auto eol=lf
+
+# Binary files are never converted or diffed as text
+*.png binary
+*.jpg binary
+*.wav binary
+*.ogg binary
+*.mp3 binary
+*.ttf binary
+*.otf binary
+*.pdf binary

@@ -1,0 +1,35 @@
+# C++ formatting rules, see docs/conventions/coding.md
+# Requires clang-format 18 or newer
+Language: Cpp
+BasedOnStyle: LLVM
+
+ColumnLimit: 100
+IndentWidth: 4
+TabWidth: 4
+LineEnding: LF
+InsertNewlineAtEOF: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+BreakBeforeBraces: Allman
+InsertBraces: true
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortLambdasOnASingleLine: Inline
+
+AccessModifierOffset: -4
+IndentCaseLabels: true
+PointerAlignment: Left
+AlwaysBreakTemplateDeclarations: Yes
+
+IncludeBlocks: Regroup
+IncludeIsMainRegex: '(_test)?$'
+IncludeCategories:
+  # Headers of this repository
+  - Regex: '^"'
+    Priority: 1
+  # Standard library
+  - Regex: '^<[a-z0-9_]+>$'
+    Priority: 3
+  # Third-party libraries
+  - Regex: '^<'
+    Priority: 2
