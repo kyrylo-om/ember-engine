@@ -30,3 +30,5 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(compiler_warnings)
 
 enable_testing()
+
+add_subdirectory(engine/common)
