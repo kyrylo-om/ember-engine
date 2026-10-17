@@ -18,10 +18,10 @@ Most folders have a short README that explains what belongs there.
 
 ## Building
 
-Requirements: Linux, GCC with C++26 support, CMake 3.30 or newer.
+Requirements: Linux, GCC with C++26 support, CMake 4.2 or newer.
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --parallel
 ctest --test-dir build
 ```
