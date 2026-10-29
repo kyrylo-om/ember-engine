@@ -32,3 +32,4 @@ include(compiler_warnings)
 enable_testing()
 
 add_subdirectory(engine/common)
+add_subdirectory(engine/ecs)
