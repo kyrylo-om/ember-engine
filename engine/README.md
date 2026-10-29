@@ -5,8 +5,8 @@ module with its own interfaces, implementation and tests.
 
 ```text
 engine/
-├── common/          shared types, components, events, reflection helpers (interface-only)
-├── ecs/             entities, components, views, resources, commands
+├── common/          shared types, events, reflection helpers (interface-only)
+├── ecs/             entities, all engine components, views, resources, commands
 ├── core/            application, main loop, time, scheduler, event bus, logging
 ├── services/        modules that own resources and are called by other code
 │   ├── platform/    window, drawing, audio, input; the only module that uses Raylib

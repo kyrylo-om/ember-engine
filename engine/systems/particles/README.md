@@ -1,4 +1,4 @@
 # particles
 
-Particle effects: emitter components, particle pools stored as structures of arrays,
-simulation with `std::simd`, drawing through `platform`.
+Particle effects for `Emitter` components (defined in `ecs`): particle pools stored as
+structures of arrays, simulation with `std::simd`, drawing through `platform`.
