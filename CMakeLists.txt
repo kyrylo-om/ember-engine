@@ -34,3 +34,4 @@ enable_testing()
 
 add_subdirectory(engine/common)
 add_subdirectory(engine/ecs)
+add_subdirectory(engine/core)

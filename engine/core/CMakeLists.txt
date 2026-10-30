@@ -10,8 +10,14 @@ target_sources(ember_core
             log.cppm
             scheduler.cppm
             time.cppm
+    PRIVATE
+        src/time.cpp
 )
 
 target_link_libraries(ember_core PUBLIC ember::ecs)
 
 ember_enable_warnings(ember_core)
+
+ember_add_tests(core
+    tests/time_test.cpp
+)

@@ -55,6 +55,12 @@ public:
 
     /// Returns the maximum number of steps per frame.
     int max_steps() const;
+
+private:
+    Seconds m_step{};
+    int m_max_steps = 0;
+    // Frame time not yet consumed by whole steps; less than one step after every advance().
+    Seconds m_accumulator{};
 };
 
 } // namespace ember::core
