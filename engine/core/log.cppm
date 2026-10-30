@@ -40,7 +40,9 @@ LogLevel log_level();
 /// Messages are also printed to the standard error stream.
 /// @param sink Function called for every message.
 /// @return Id for removing the sink.
-/// @note The sink may be called from any thread, but never from two threads at once.
+/// @note The sink may be called from any thread, but never from two threads at once. It
+/// must not write log messages or add or remove sinks, because the log is locked while
+/// the sink runs.
 LogSinkId add_log_sink(LogSink sink);
 
 /// Removes a sink added with `add_log_sink()`. After the call returns, the sink is not
@@ -93,5 +95,50 @@ void log_warning(std::format_string<Args...> format, Args&&... args);
 /// @param args Values inserted into the format string.
 template <typename... Args>
 void log_error(std::format_string<Args...> format, Args&&... args);
+
+} // namespace ember::core
+
+namespace ember::core
+{
+
+// Checks the filter before formatting, so dropped messages cost no formatting.
+template <typename... Args>
+void write_formatted_log(LogLevel level, std::format_string<Args...> format, Args&&... args)
+{
+    if (level >= log_level())
+    {
+        write_log(level, std::format(format, std::forward<Args>(args)...));
+    }
+}
+
+template <typename... Args>
+void log_trace(std::format_string<Args...> format, Args&&... args)
+{
+    write_formatted_log(LogLevel::Trace, format, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void log_debug(std::format_string<Args...> format, Args&&... args)
+{
+    write_formatted_log(LogLevel::Debug, format, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void log_info(std::format_string<Args...> format, Args&&... args)
+{
+    write_formatted_log(LogLevel::Info, format, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void log_warning(std::format_string<Args...> format, Args&&... args)
+{
+    write_formatted_log(LogLevel::Warning, format, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void log_error(std::format_string<Args...> format, Args&&... args)
+{
+    write_formatted_log(LogLevel::Error, format, std::forward<Args>(args)...);
+}
 
 } // namespace ember::core
