@@ -18,16 +18,30 @@ Most folders have a short README that explains what belongs there.
 
 ## Building
 
-Requirements: Linux, GCC with C++26 support, CMake 4.2 or newer.
+Requirements: Linux, GCC 16 (`g++-16`), CMake 4.2, Ninja.
+
+Configure, build and run the tests in one step:
 
 ```sh
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --parallel
-ctest --test-dir build
+cmake --workflow --preset debug
 ```
 
+Or step by step:
+
+```sh
+cmake --preset debug
+cmake --build --preset debug
+ctest --preset debug
+```
+
+The `release` preset builds with optimizations. Build output goes to `build/<preset>/`.
+Editors with CMake support, such as VS Code with CMake Tools, offer the same presets.
+Personal presets, for example with another compiler, go into `CMakeUserPresets.json`,
+which is not committed.
+
 Warnings are treated as errors. For local experiments this can be turned off with
-`-DEMBER_WARNINGS_AS_ERRORS=OFF`, but pushed code must build without warnings.
+`cmake --preset debug -DEMBER_WARNINGS_AS_ERRORS=OFF`, but pushed code must build without
+warnings.
 
 ## Conventions
 
