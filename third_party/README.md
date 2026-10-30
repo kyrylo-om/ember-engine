@@ -7,3 +7,4 @@ Each library lives in its own folder. When adding one, write down its version an
 
 | Library | Version | Source |
 |---------|---------|--------|
+| Catch2 (`catch2/`) | 3.16.1 | https://github.com/catchorg/Catch2, amalgamated files from `extras/` |

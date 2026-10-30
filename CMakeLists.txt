@@ -28,6 +28,7 @@ option(EMBER_WARNINGS_AS_ERRORS "Treat warnings in Ember code as errors" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(compiler_warnings)
+include(catch2)
 
 enable_testing()
 
