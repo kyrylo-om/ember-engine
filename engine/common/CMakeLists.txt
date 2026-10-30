@@ -7,7 +7,6 @@ target_sources(ember_common
             common.cppm
             math.cppm
             handle.cppm
-            reflect.cppm
 )
 
 ember_enable_warnings(ember_common)
