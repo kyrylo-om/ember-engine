@@ -2,6 +2,8 @@
 // draws them.
 export module ember.particles;
 
+export import :particle_pool;
+
 import ember.core;
 import ember.ecs;
 import std;

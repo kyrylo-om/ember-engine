@@ -5,8 +5,15 @@ target_sources(ember_particles
     PUBLIC
         FILE_SET CXX_MODULES FILES
             particles.cppm
+            particle_pool.cppm
+    PRIVATE
+        src/particle_pool.cpp
 )
 
 target_link_libraries(ember_particles PUBLIC ember::core)
 
 ember_enable_warnings(ember_particles)
+
+ember_add_tests(particles
+    tests/particle_pool_test.cpp
+)
