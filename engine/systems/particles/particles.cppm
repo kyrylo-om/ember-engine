@@ -3,6 +3,7 @@
 export module ember.particles;
 
 export import :particle_pool;
+export import :particle_spawner;
 
 import ember.core;
 import ember.ecs;
