@@ -53,6 +53,7 @@ CMakeUserPresets.json
 *.log
 *.tmp
 *.bak
+*.pdf
 
 # AI assistants: personal instructions and settings
 /AGENTS.md
