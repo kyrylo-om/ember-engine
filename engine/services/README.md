@@ -7,7 +7,7 @@ services.
 
 | Module     | Contents                                                        |
 |------------|-----------------------------------------------------------------|
-| `platform` | Window, drawing, audio, input; the only module that uses Raylib |
+| `platform` | Window, drawing, audio, input; wraps Raylib for the engine     |
 | `assets`   | Embedded asset catalog, asset manager, scene loading and saving |
 | `debug`    | Debug overlay, console, inspector                               |
 

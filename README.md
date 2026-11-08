@@ -18,7 +18,16 @@ Most folders have a short README that explains what belongs there.
 
 ## Building
 
-Requirements: Linux, GCC 16 (`g++-16`), CMake 4.2, Ninja.
+Requirements: Linux, GCC 16 (`g++-16`), CMake 4.2, Ninja, and the X11 and OpenGL
+development packages that Raylib is built with. On Ubuntu:
+
+```sh
+sudo apt install ninja-build libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev \
+    libxi-dev libgl1-mesa-dev
+```
+
+Raylib and raylib-cpp are downloaded by CMake on the first configure, so that step needs
+network access.
 
 Configure, build and run the tests in one step:
 
