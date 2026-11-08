@@ -1,6 +1,7 @@
 # Raylib and its C++ wrapper raylib-cpp, downloaded on the first configure. raylib-cpp
 # provides the C++ module `raylib` as the target raylib_cpp_modules, so code links that
-# target and writes `import raylib;`. Only the platform module may use it.
+# target and writes `import raylib;`. Only platform and the debug overlay may use it (see
+# engine/README.md).
 #
 # Raylib is built from source with the bundled GLFW, which needs the X11 and OpenGL
 # development packages (see README.md).

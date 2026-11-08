@@ -9,7 +9,7 @@ engine/
 ├── ecs/             entities, all engine components, views, resources, commands
 ├── core/            application, main loop, time, scheduler, event bus, logging
 ├── services/        modules that own resources and are called by other code
-│   ├── platform/    window, drawing, audio, input; the only module that uses Raylib
+│   ├── platform/    window, drawing, audio, input; wraps Raylib for the engine
 │   ├── assets/      embedded asset catalog, asset manager, scenes
 │   └── debug/       debug overlay, console, inspector
 └── systems/         modules that run every frame over components
@@ -35,6 +35,8 @@ A module also depends on everything its dependencies depend on.
   services and systems, then games.
 - Services and systems do not depend on each other, except on `platform` for drawing,
   audio and GPU resources.
+- Only `platform` uses Raylib. The one exception is `debug`, whose overlay is drawn with
+  raygui, a GUI library built on Raylib; it uses them only in its sources.
 - Raylib types never appear in exported declarations.
 
 ## Module layout

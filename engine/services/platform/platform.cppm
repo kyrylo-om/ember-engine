@@ -1,5 +1,5 @@
-// Window, drawing, audio and input: the only module that uses Raylib. Its interfaces use only
-// Ember types, so the rest of the engine does not depend on Raylib.
+// Window, drawing, audio and input: the module that wraps Raylib for the engine. Its interfaces
+// use only Ember types, so the rest of the engine does not depend on Raylib.
 export module ember.platform;
 
 export import :audio;
