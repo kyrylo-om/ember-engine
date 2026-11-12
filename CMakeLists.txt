@@ -31,6 +31,12 @@ include(compiler_warnings)
 include(catch2)
 include(raylib)
 
+# C++26 contracts check the preconditions of the engine API. They are checked only in Debug
+# builds. Set after the third-party targets, so it applies to Ember code only.
+add_compile_options(-fcontracts $<$<NOT:$<CONFIG:Debug>>:-fcontract-evaluation-semantic=ignore>)
+# GCC keeps the default handler of contract violations in this library
+link_libraries(stdc++exp)
+
 enable_testing()
 
 add_subdirectory(engine/common)

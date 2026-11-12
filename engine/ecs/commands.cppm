@@ -53,6 +53,10 @@ private:
 
     /// Creates an empty command list that reserves entities in the given world.
     explicit Commands(World& world);
+
+    World* m_world = nullptr;
+    // Recorded changes in recording order.
+    std::vector<std::move_only_function<void(World&)>> m_operations{};
 };
 
 } // namespace ember::ecs

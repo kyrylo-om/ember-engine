@@ -2,6 +2,7 @@ export module ember.ecs:world;
 
 import :commands;
 import :entity;
+import :storage;
 import :view;
 import std;
 
@@ -131,6 +132,200 @@ public:
 
     /// Applies all recorded commands in recording order and clears the list.
     void apply_commands();
+
+private:
+    friend class Commands;
+
+    // Takes an index for a new entity without making the entity alive.
+    Entity reserve_entity();
+
+    // Makes a reserved entity alive.
+    void activate(Entity entity);
+
+    template <typename T>
+    SparseSet<T>* find_set();
+
+    template <typename T>
+    const SparseSet<T>* find_set() const;
+
+    // Generation of the entity that uses or will next use each index.
+    std::vector<std::uint32_t> m_generations{};
+    // False for the indices of destroyed entities and of entities that are only reserved.
+    std::vector<bool> m_is_alive{};
+    std::vector<std::uint32_t> m_free_indices{};
+    std::unordered_map<std::type_index, std::unique_ptr<SparseSetBase>> m_sets{};
+    // In insertion order, which the destructor needs.
+    std::vector<std::unique_ptr<ResourceBase>> m_resources{};
+    // Position of the resource of every type in m_resources.
+    std::unordered_map<std::type_index, std::size_t> m_resource_slots{};
+    Commands m_commands;
 };
+
+} // namespace ember::ecs
+
+namespace ember::ecs
+{
+
+template <typename T>
+T& World::add(Entity entity, T component)
+{
+    contract_assert(is_alive(entity));
+    const auto [position, is_inserted] = m_sets.try_emplace(std::type_index{typeid(T)});
+    if (is_inserted)
+    {
+        position->second = std::make_unique<SparseSet<T>>();
+    }
+    return static_cast<SparseSet<T>&>(*position->second).emplace(entity, std::move(component));
+}
+
+template <typename T>
+T& World::get(Entity entity)
+{
+    T* component = try_get<T>(entity);
+    contract_assert(component != nullptr);
+    return *component;
+}
+
+template <typename T>
+const T& World::get(Entity entity) const
+{
+    const T* component = try_get<T>(entity);
+    contract_assert(component != nullptr);
+    return *component;
+}
+
+template <typename T>
+T* World::try_get(Entity entity)
+{
+    SparseSet<T>* set = find_set<T>();
+    return set == nullptr ? nullptr : set->try_get(entity);
+}
+
+template <typename T>
+const T* World::try_get(Entity entity) const
+{
+    const SparseSet<T>* set = find_set<T>();
+    return set == nullptr ? nullptr : set->try_get(entity);
+}
+
+template <typename T>
+bool World::has(Entity entity) const
+{
+    const SparseSet<T>* set = find_set<T>();
+    return set != nullptr && set->contains(entity);
+}
+
+template <typename T>
+void World::remove(Entity entity)
+{
+    if (SparseSet<T>* set = find_set<T>(); set != nullptr)
+    {
+        set->remove(entity);
+    }
+}
+
+template <typename... Ts>
+View<Ts...> World::view()
+{
+    return View<Ts...>{find_set<std::remove_const_t<Ts>>()...};
+}
+
+template <typename... Ts>
+View<const Ts...> World::view() const
+{
+    return View<const Ts...>{find_set<std::remove_const_t<Ts>>()...};
+}
+
+template <typename T>
+T& World::insert_resource(T resource)
+{
+    auto holder = std::make_unique<ResourceHolder<T>>(std::move(resource));
+    T& stored = holder->value();
+    const auto [position, is_inserted] =
+        m_resource_slots.try_emplace(std::type_index{typeid(T)}, m_resources.size());
+    if (is_inserted)
+    {
+        m_resources.push_back(std::move(holder));
+    }
+    else
+    {
+        // The new resource takes the place of the old one in the destruction order.
+        m_resources[position->second] = std::move(holder);
+    }
+    return stored;
+}
+
+template <typename T>
+T& World::resource()
+{
+    T* found = try_resource<T>();
+    contract_assert(found != nullptr);
+    return *found;
+}
+
+template <typename T>
+const T& World::resource() const
+{
+    const T* found = try_resource<T>();
+    contract_assert(found != nullptr);
+    return *found;
+}
+
+template <typename T>
+T* World::try_resource()
+{
+    const auto found = m_resource_slots.find(std::type_index{typeid(T)});
+    if (found == m_resource_slots.end())
+    {
+        return nullptr;
+    }
+    return &static_cast<ResourceHolder<T>&>(*m_resources[found->second]).value();
+}
+
+template <typename T>
+const T* World::try_resource() const
+{
+    const auto found = m_resource_slots.find(std::type_index{typeid(T)});
+    if (found == m_resource_slots.end())
+    {
+        return nullptr;
+    }
+    return &static_cast<ResourceHolder<T>&>(*m_resources[found->second]).value();
+}
+
+template <typename T>
+SparseSet<T>* World::find_set()
+{
+    const auto found = m_sets.find(std::type_index{typeid(T)});
+    return found == m_sets.end() ? nullptr : static_cast<SparseSet<T>*>(found->second.get());
+}
+
+template <typename T>
+const SparseSet<T>* World::find_set() const
+{
+    const auto found = m_sets.find(std::type_index{typeid(T)});
+    return found == m_sets.end() ? nullptr : static_cast<const SparseSet<T>*>(found->second.get());
+}
+
+// Defined here and not next to Commands, because they use World, which the commands partition
+// only declares.
+template <typename T>
+void Commands::add(Entity entity, T component)
+{
+    m_operations.emplace_back(
+        [entity, component = std::move(component)](World& world) mutable
+        {
+            if (world.is_alive(entity))
+            {
+                world.add<T>(entity, std::move(component));
+            }
+        });
+}
+
+template <typename T>
+void Commands::remove(Entity entity)
+{
+    m_operations.emplace_back([entity](World& world) { world.remove<T>(entity); });
+}
 
 } // namespace ember::ecs

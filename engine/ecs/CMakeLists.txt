@@ -8,6 +8,7 @@ target_sources(ember_ecs
             commands.cppm
             entity.cppm
             registry.cppm
+            storage.cppm
             view.cppm
             world.cppm
             components/components.cppm
@@ -19,8 +20,17 @@ target_sources(ember_ecs
             components/sprite.cppm
             components/transform.cppm
             components/velocity.cppm
+    PRIVATE
+        src/commands.cpp
+        src/world.cpp
 )
 
 target_link_libraries(ember_ecs PUBLIC ember::common)
 
 ember_enable_warnings(ember_ecs)
+
+ember_add_tests(ecs
+    tests/commands_test.cpp
+    tests/view_test.cpp
+    tests/world_test.cpp
+)
