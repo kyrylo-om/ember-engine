@@ -13,7 +13,12 @@ target_sources(ember_particles
         src/particles.cpp
 )
 
-target_link_libraries(ember_particles PUBLIC ember::core)
+target_link_libraries(ember_particles
+    PUBLIC
+        ember::core
+    PRIVATE
+        ember::platform
+)
 
 ember_enable_warnings(ember_particles)
 

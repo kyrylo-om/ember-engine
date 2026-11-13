@@ -4,6 +4,7 @@ import ember.common;
 import ember.core;
 import ember.ecs;
 import ember.particles;
+import ember.platform;
 import std;
 
 using ember::Vec2;
@@ -50,7 +51,7 @@ TEST_CASE("a world without the particle plugin has no particles")
     CHECK(particle_count(world) == 0);
 }
 
-TEST_CASE("the plugin inserts its settings and adds one update system")
+TEST_CASE("the plugin inserts its settings and adds its two systems")
 {
     Application app;
     app.add_plugin(ParticlePlugin{.settings = {.max_particles_per_emitter = 16}});
@@ -58,6 +59,7 @@ TEST_CASE("the plugin inserts its settings and adds one update system")
     REQUIRE(app.world().try_resource<ParticleSettings>() != nullptr);
     CHECK(app.world().resource<ParticleSettings>().max_particles_per_emitter == 16);
     CHECK(app.scheduler().system_count(Stage::Update) == 1);
+    CHECK(app.scheduler().system_count(Stage::Render) == 1);
     CHECK(particle_count(app.world()) == 0);
 }
 
@@ -191,4 +193,34 @@ TEST_CASE("the simd and scalar simulation give the same number of particles")
 
     // 10 particles per frame, alive during the frame they are emitted in and two more.
     CHECK(particle_count(app.world()) == 30);
+}
+
+// Needs a display; skipped on a machine without one.
+TEST_CASE("particles are drawn in a window through a camera")
+{
+    Application app;
+    app.add_plugin(ember::platform::PlatformPlugin{
+        .settings = {.window = {.title = "Ember particles test", .width = 320, .height = 240},
+                     .is_audio_enabled = false}});
+    if (app.world().try_resource<ember::platform::Window>() == nullptr)
+    {
+        SKIP("no window can be opened on this machine");
+    }
+    app.add_plugin(ParticlePlugin{});
+
+    Emitter emitter = steady_emitter();
+    emitter.start_color = ember::Color::red;
+    emitter.end_color = ember::Color::transparent;
+    const Entity entity = add_emitter(app, emitter);
+    const Entity camera = app.world().create();
+    app.world().add<ember::ecs::Camera>(camera, {.position = {10.0f, 10.0f}, .zoom = 2.0f});
+
+    app.update(frame);
+    app.update(frame);
+    CHECK(particle_count(app.world()) == 4);
+
+    // A frame after the emitter is gone draws nothing and does not fail.
+    app.world().destroy(entity);
+    CHECK_NOTHROW(app.update(frame));
+    CHECK(particle_count(app.world()) == 0);
 }

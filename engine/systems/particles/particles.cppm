@@ -23,20 +23,27 @@ struct ParticleSettings
     bool use_simd = true;
 };
 
-/// Simulates the particles of all emitters in `Stage::Update`.
+/// Simulates the particles of all emitters in `Stage::Update` and draws them in
+/// `Stage::Render`.
 ///
 /// Every entity with an `ecs::Transform` and an `ecs::Emitter` gets its own particle pool
 /// when the system first sees it. Each update moves and ages the live particles, removes
 /// those older than `ecs::Emitter::lifetime`, then emits new ones at the position of the
 /// entity. When the entity is destroyed or loses one of the two components, its particles
 /// disappear.
+///
+/// A particle is drawn as a square whose size and color change from the start to the end
+/// values of its emitter over its life. Particles are drawn in world coordinates through
+/// the first `ecs::Camera` in the world; without a camera, the world origin is in the
+/// center of the window. Add the plugin after the plugins whose drawing should be below
+/// the particles. Without the platform plugin, particles are simulated but not drawn.
 struct ParticlePlugin
 {
     /// Settings inserted into the world as a resource.
     ParticleSettings settings{};
 
-    /// Inserts the settings and adds the particle system.
-    /// @param app Application to add the system to.
+    /// Inserts the settings and adds the particle systems.
+    /// @param app Application to add the systems to.
     void build(core::Application& app) const;
 };
 
