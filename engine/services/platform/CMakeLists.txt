@@ -18,6 +18,7 @@ target_sources(ember_platform
             src/raylib_support.cpp
             src/resource_table.cpp
     PRIVATE
+        src/audio.cpp
         src/graphics.cpp
         src/image.cpp
         src/input.cpp
@@ -35,6 +36,7 @@ target_link_libraries(ember_platform
 ember_enable_warnings(ember_platform)
 
 ember_add_tests(platform
+    tests/audio_test.cpp
     tests/graphics_test.cpp
     tests/image_test.cpp
     tests/input_test.cpp
