@@ -43,6 +43,9 @@ cmake --build --preset debug
 ctest --preset debug
 ```
 
+To build and run the sample game without the tests, use `./run.sh` (see
+[examples](examples/README.md)).
+
 The `release` preset builds with optimizations. Build output goes to `build/<preset>/`.
 Editors with CMake support, such as VS Code with CMake Tools, offer the same presets.
 Personal presets, for example with another compiler, go into `CMakeUserPresets.json`,
