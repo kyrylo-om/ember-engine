@@ -46,3 +46,5 @@ add_subdirectory(engine/services/platform)
 add_subdirectory(engine/services/debug)
 add_subdirectory(engine/systems/particles)
 add_subdirectory(engine/systems/render)
+
+add_subdirectory(examples)
