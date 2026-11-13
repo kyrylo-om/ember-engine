@@ -22,6 +22,7 @@ target_sources(ember_platform
         src/graphics.cpp
         src/image.cpp
         src/input.cpp
+        src/platform.cpp
         src/window.cpp
 )
 
@@ -40,4 +41,5 @@ ember_add_tests(platform
     tests/graphics_test.cpp
     tests/image_test.cpp
     tests/input_test.cpp
+    tests/platform_test.cpp
 )
