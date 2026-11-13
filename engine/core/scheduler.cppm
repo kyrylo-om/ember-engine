@@ -38,6 +38,7 @@ using System = std::move_only_function<void(ecs::World& world)>;
 ///
 /// Systems of a stage run in the order they were added. Deferred commands recorded by the
 /// systems are applied to the world after each stage, so the next stage sees their result.
+/// @note A system must not add systems to the scheduler that is running it.
 class Scheduler
 {
 public:
@@ -57,6 +58,9 @@ public:
     void add_system(Stage stage, std::string_view name, System system);
 
     /// Runs all systems of a stage, then applies the deferred commands.
+    ///
+    /// An exception thrown by a system is logged with the name of the system and thrown
+    /// further. The systems after it do not run and the commands are not applied.
     /// @param stage Stage to run.
     /// @param world World passed to the systems.
     void run_stage(Stage stage, ecs::World& world);
@@ -65,6 +69,19 @@ public:
     /// @param stage Stage whose systems are counted.
     /// @return Number of systems added to the stage.
     std::size_t system_count(Stage stage) const;
+
+private:
+    struct NamedSystem
+    {
+        std::string name{};
+        System system{};
+    };
+
+    // Shutdown is the last stage, so its value plus one is the number of stages.
+    static constexpr std::size_t stage_count = static_cast<std::size_t>(Stage::Shutdown) + 1;
+
+    // Systems of every stage in the order they were added, indexed by the value of the stage.
+    std::array<std::vector<NamedSystem>, stage_count> m_systems{};
 };
 
 } // namespace ember::core

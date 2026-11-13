@@ -13,6 +13,7 @@ target_sources(ember_core
     PRIVATE
         src/event_bus.cpp
         src/log.cpp
+        src/scheduler.cpp
         src/time.cpp
 )
 
@@ -23,5 +24,6 @@ ember_enable_warnings(ember_core)
 ember_add_tests(core
     tests/event_bus_test.cpp
     tests/log_test.cpp
+    tests/scheduler_test.cpp
     tests/time_test.cpp
 )
