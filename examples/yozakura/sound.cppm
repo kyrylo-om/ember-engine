@@ -17,6 +17,9 @@ std::vector<std::byte> golden_chime_wav();
 /// Returns the low sound played when a spirit is lost.
 std::vector<std::byte> miss_wav();
 
+/// Returns the short rush of air played when the girl dashes.
+std::vector<std::byte> dash_wav();
+
 /// Returns the background music: a slow melody that can be repeated without a break.
 std::vector<std::byte> music_wav();
 
@@ -178,6 +181,29 @@ std::vector<std::byte> miss_wav()
     std::vector<float> samples = silence(0.7f);
     add_pluck(samples, 0.0f, note::g3, volume, fade_rate);
     add_pluck(samples, second_note_delay, note::d3, volume, fade_rate);
+    return to_wav(samples);
+}
+
+std::vector<std::byte> dash_wav()
+{
+    // A tone that falls quickly from high to low is heard as something rushing past.
+    constexpr float duration = 0.2f;
+    constexpr float start_frequency = 1100.0f;
+    constexpr float end_frequency = 260.0f;
+    constexpr float volume = 0.3f;
+
+    std::vector<float> samples = silence(duration);
+    float angle = 0.0f;
+    for (std::size_t index = 0; index < samples.size(); ++index)
+    {
+        const float progress = static_cast<float>(index) / static_cast<float>(samples.size());
+        // The angle is added up step by step, because the frequency changes all the time.
+        angle += two_pi * std::lerp(start_frequency, end_frequency, progress) /
+                 static_cast<float>(sample_rate);
+        // Loudest in the middle and silent at both ends, so it starts and stops without a
+        // click.
+        samples[index] = std::sin(angle) * std::sin(progress * std::numbers::pi_v<float>) * volume;
+    }
     return to_wav(samples);
 }
 

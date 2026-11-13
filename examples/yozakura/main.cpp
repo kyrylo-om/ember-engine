@@ -90,6 +90,10 @@ struct Player
     bool is_running = false;
     /// Time until she leaves the next shadow behind her.
     Seconds until_afterimage{};
+    /// Time the current dash still lasts; zero when she is not dashing.
+    Seconds dash_remaining{};
+    /// Time until she can dash again.
+    Seconds dash_cooldown{};
 };
 
 /// A shadow the girl leaves behind while she moves: her shape at that moment, fading out.
@@ -172,6 +176,7 @@ struct GameAssets
     Handle<ember::Sound> chime{};
     Handle<ember::Sound> golden_chime{};
     Handle<ember::Sound> miss{};
+    Handle<ember::Sound> dash{};
     Handle<ember::Music> music{};
 };
 
@@ -188,7 +193,14 @@ constexpr float short_jump_factor = 0.45f;
 constexpr float player_half_width = girl_size.x / 2.0f;
 constexpr float player_ground_y = ground_y - girl_size.y / 2.0f;
 
+// A dash is a short rush straight ahead, also in the air. It cannot be repeated at once.
+constexpr float dash_speed = 1000.0f;
+constexpr Seconds dash_duration{0.16f};
+constexpr Seconds dash_cooldown{0.7f};
+
 constexpr Seconds afterimage_interval{0.045f};
+// During a dash the shadows follow each other more closely.
+constexpr Seconds dash_afterimage_interval{0.012f};
 constexpr Seconds afterimage_lifetime{0.32f};
 
 constexpr float spirit_radius = 11.0f;
@@ -319,6 +331,7 @@ GameAssets load_assets(World& world, std::span<const std::byte> music)
         assets.chime = audio->load_sound(yozakura::chime_wav(), ".wav").value_or({});
         assets.golden_chime = audio->load_sound(yozakura::golden_chime_wav(), ".wav").value_or({});
         assets.miss = audio->load_sound(yozakura::miss_wav(), ".wav").value_or({});
+        assets.dash = audio->load_sound(yozakura::dash_wav(), ".wav").value_or({});
         assets.music = audio->load_music(music, ".wav").value_or({});
         audio->set_music_volume(assets.music, music_volume);
         audio->play_music(assets.music);
@@ -337,6 +350,9 @@ void bind_keys(Input& input)
     input.bind("jump", Key::Up);
     input.bind("restart", Key::Enter);
     input.bind("mute", Key::M);
+    input.bind("dash", Key::LeftShift);
+    input.bind("dash", Key::RightShift);
+    input.bind("dash", Key::J);
     input.bind("quit", Key::Escape);
 }
 
@@ -407,6 +423,14 @@ void start_new_game(World& world)
     }
 }
 
+void play(World& world, Handle<ember::Sound> sound, float volume)
+{
+    if (Audio* audio = world.try_resource<Audio>(); audio != nullptr)
+    {
+        audio->play_sound(sound, volume);
+    }
+}
+
 void handle_keys(World& world)
 {
     const Input& input = world.resource<Input>();
@@ -430,6 +454,8 @@ void handle_keys(World& world)
         start_new_game(world);
     }
 
+    const Seconds delta = world.resource<Time>().delta;
+    bool is_dash_started = false;
     for (auto [entity, player, velocity] : world.view<Player, Velocity>())
     {
         const float direction = input.axis("left", "right");
@@ -448,6 +474,26 @@ void handle_keys(World& world)
         {
             velocity.value.y *= short_jump_factor;
         }
+
+        player.dash_remaining = std::max(Seconds::zero(), player.dash_remaining - delta);
+        player.dash_cooldown = std::max(Seconds::zero(), player.dash_cooldown - delta);
+        if (input.is_action_pressed("dash") && player.dash_cooldown == Seconds::zero())
+        {
+            player.dash_remaining = dash_duration;
+            player.dash_cooldown = dash_cooldown;
+            is_dash_started = true;
+        }
+        if (player.dash_remaining > Seconds::zero())
+        {
+            // A dash goes the way she faces and ignores the keys and gravity until it ends.
+            velocity.value = {player.is_facing_left ? -dash_speed : dash_speed, 0.0f};
+        }
+    }
+
+    if (is_dash_started)
+    {
+        constexpr float dash_volume = 0.5f;
+        play(world, world.resource<GameAssets>().dash, dash_volume);
     }
 }
 
@@ -457,7 +503,10 @@ void move_player(World& world)
     const float dt = world.resource<Time>().fixed_delta.count();
     for (auto [entity, player, transform, velocity] : world.view<Player, Transform, Velocity>())
     {
-        velocity.value.y += gravity * dt;
+        if (player.dash_remaining == Seconds::zero())
+        {
+            velocity.value.y += gravity * dt;
+        }
         transform.position += velocity.value * dt;
 
         if (transform.position.y >= player_ground_y)
@@ -478,13 +527,14 @@ void leave_afterimages(World& world)
     const auto elapsed = static_cast<float>(time.elapsed.count());
     for (auto [entity, player, transform] : world.view<Player, const Transform>())
     {
-        const bool is_moving = player.is_running || !player.is_on_ground;
+        const bool is_dashing = player.dash_remaining > Seconds::zero();
+        const bool is_moving = player.is_running || !player.is_on_ground || is_dashing;
         player.until_afterimage -= time.delta;
         if (!is_moving || player.until_afterimage > Seconds::zero())
         {
             continue;
         }
-        player.until_afterimage = afterimage_interval;
+        player.until_afterimage = is_dashing ? dash_afterimage_interval : afterimage_interval;
 
         // The world is changed through commands, because this system is iterating over it;
         // the scheduler applies them after the stage.
@@ -592,14 +642,6 @@ void spawn_burst(Commands& commands, Vec2 position, const Emitter& emitter)
     commands.add<Transform>(burst, {.position = position});
     commands.add<Emitter>(burst, emitter);
     commands.add<Expiring>(burst, {.remaining = lifetime, .lifetime = lifetime});
-}
-
-void play(World& world, Handle<ember::Sound> sound, float volume)
-{
-    if (Audio* audio = world.try_resource<Audio>(); audio != nullptr)
-    {
-        audio->play_sound(sound, volume);
-    }
 }
 
 // Reacts to the spirits caught and lost in the previous frame. The systems that detect
@@ -1173,8 +1215,8 @@ void draw_hud(World& world)
         draw_image(graphics, assets.heart, {x, last_heart.y}, heart_size,
                    is_full ? full_heart : empty_heart);
     }
-    draw_label(graphics, "A / D  move     SPACE  jump     M  music     ESC  quit", hint_position,
-               hint_size, dim_text_color);
+    draw_label(graphics, "A / D  move    SPACE  jump    SHIFT  dash    M  music    ESC  quit",
+               hint_position, hint_size, dim_text_color);
 
     if (game.is_over)
     {

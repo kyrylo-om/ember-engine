@@ -436,13 +436,19 @@ Image mountain_image()
     constexpr float snow_line = 0.62f;
     constexpr float snow_zigzag_size = 0.06f;
     constexpr float snow_zigzag_speed = 0.35f;
+    // The moon lights the mountain from the right, so it gets darker towards the left. The
+    // shade changes gradually over this part of the width; a sharp line would look like an
+    // edge of the mountain.
+    constexpr float shade_start = -0.5f;
+    constexpr float shade_width = 1.0f;
 
     Image image = blank_image(width, height);
     for (int x = 0; x < width; ++x)
     {
         const float from_center = std::abs(centered(image, x, 0).x);
         const float top = std::min(std::pow(1.0f - from_center, slope_power), crater_height);
-        const bool is_shadow_side = x > width / 2;
+        const float shade =
+            std::clamp((shade_start - centered(image, x, 0).x) / shade_width + 1.0f, 0.0f, 1.0f);
         for (int y = 0; y < height; ++y)
         {
             // Height of the pixel from 0 (foot of the mountain) to 1 (top of the image).
@@ -455,11 +461,11 @@ Image mountain_image()
                 snow_line + snow_zigzag_size * std::sin(static_cast<float>(x) * snow_zigzag_speed);
             if (level > snow_edge)
             {
-                pixel(image, x, y) = is_shadow_side ? snow_shadow : snow;
+                pixel(image, x, y) = blend(snow, snow_shadow, shade);
             }
             else
             {
-                pixel(image, x, y) = is_shadow_side ? rock_shadow : rock;
+                pixel(image, x, y) = blend(rock, rock_shadow, shade);
             }
         }
     }
