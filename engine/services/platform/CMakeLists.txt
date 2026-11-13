@@ -11,6 +11,8 @@ target_sources(ember_platform
             input.cppm
             platform_error.cppm
             window.cppm
+    PRIVATE
+        src/input.cpp
 )
 
 # Raylib is private: the interfaces do not import it, only the implementation does.
@@ -22,3 +24,7 @@ target_link_libraries(ember_platform
 )
 
 ember_enable_warnings(ember_platform)
+
+ember_add_tests(platform
+    tests/input_test.cpp
+)
