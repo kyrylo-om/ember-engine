@@ -29,8 +29,8 @@ struct ApplicationConfig
     int max_fixed_steps = 5;
 };
 
-/// Event that asks the application to stop after the current frame, for example when the
-/// window is closed.
+/// Event that asks the application to stop, for example when the window is closed. The
+/// application stops after the frame in which the event becomes readable.
 struct ExitRequested
 {
 };
@@ -89,6 +89,31 @@ public:
 
     /// Returns true until an exit is requested.
     bool is_running() const;
+
+private:
+    // Runs Stage::Startup unless it has already run.
+    void start();
+
+    ApplicationConfig m_config{};
+    // Declared before the scheduler, so the systems are destroyed before the world and the
+    // resources they may refer to.
+    ecs::World m_world{};
+    Scheduler m_scheduler{};
+    FixedTimestep m_fixed_timestep;
+    bool m_has_started = false;
+    bool m_is_running = true;
 };
+
+} // namespace ember::core
+
+namespace ember::core
+{
+
+template <Plugin P>
+Application& Application::add_plugin(const P& plugin)
+{
+    plugin.build(*this);
+    return *this;
+}
 
 } // namespace ember::core
