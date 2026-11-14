@@ -50,7 +50,8 @@ Every module folder has the same layout:
 ├── <module>.cppm             primary module interface
 ├── <partition>.cppm          interface partitions
 ├── src/                      implementation units
-└── tests/                    unit tests
+├── tests/                    unit tests
+└── benchmarks/               benchmarks, in modules where speed is measured
 ```
 
 The `services/` and `systems/` groups only exist in the folder structure. Everywhere else a

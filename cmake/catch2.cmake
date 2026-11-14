@@ -15,3 +15,14 @@ function(ember_add_tests module)
     ember_enable_warnings(${target})
     add_test(NAME ${target} COMMAND ${target})
 endfunction()
+
+# Adds the benchmark executable of a module. Benchmarks use Catch2 like the tests, but they
+# are not registered with CTest, because they measure time instead of checking results.
+# Usage: ember_add_benchmarks(<module> <benchmark sources>...). The executable is named
+# ember_<module>_benchmarks and links ember::<module>.
+function(ember_add_benchmarks module)
+    set(target ember_${module}_benchmarks)
+    add_executable(${target} ${ARGN})
+    target_link_libraries(${target} PRIVATE ember::${module} ember_catch2)
+    ember_enable_warnings(${target})
+endfunction()

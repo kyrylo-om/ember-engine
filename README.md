@@ -46,6 +46,9 @@ ctest --preset debug
 To build and run the sample game without the tests, use `./run.sh` (see
 [examples](examples/README.md)).
 
+`./benchmark.sh` builds the benchmarks with optimizations and runs them; `./benchmark.sh
+particles` runs those of one module. They are separate programs and not part of the tests.
+
 The `release` preset builds with optimizations. Build output goes to `build/<preset>/`.
 Editors with CMake support, such as VS Code with CMake Tools, offer the same presets.
 Personal presets, for example with another compiler, go into `CMakeUserPresets.json`,
