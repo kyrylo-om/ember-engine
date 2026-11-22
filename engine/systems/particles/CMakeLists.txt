@@ -27,3 +27,7 @@ ember_add_tests(particles
     tests/particle_spawner_test.cpp
     tests/particles_test.cpp
 )
+
+ember_add_benchmarks(particles
+    benchmarks/particle_pool_benchmark.cpp
+)
