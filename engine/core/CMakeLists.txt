@@ -29,3 +29,7 @@ ember_add_tests(core
     tests/scheduler_test.cpp
     tests/time_test.cpp
 )
+
+ember_add_benchmarks(core
+    benchmarks/core_benchmark.cpp
+)
