@@ -1,0 +1,5 @@
+# Temporary LaTeX files go to _build/, which git ignores; report.pdf stays next to the
+# source, so it can be read in the repository.
+$aux_dir = '_build';
+$out_dir = '.';
+$pdf_mode = 1;

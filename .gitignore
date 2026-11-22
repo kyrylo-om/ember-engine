@@ -54,6 +54,8 @@ CMakeUserPresets.json
 *.tmp
 *.bak
 *.pdf
+# The built project report is kept in the repository, so it can be read without LaTeX
+!docs/report/report.pdf
 
 # AI assistants: personal instructions and settings
 /AGENTS.md
