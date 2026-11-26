@@ -76,6 +76,7 @@ export
     using ::b2MakeOffsetBox;
     using ::b2Polygon;
     using ::b2Shape_GetBody;
+    using ::b2Shape_GetUserData;
     using ::b2Shape_IsValid;
     using ::b2ShapeDef;
     using ::b2ShapeId;
@@ -85,7 +86,9 @@ export
 // Events
 export
 {
+    using ::b2Contact_GetData;
     using ::b2ContactBeginTouchEvent;
+    using ::b2ContactData;
     using ::b2ContactEndTouchEvent;
     using ::b2ContactEvents;
     using ::b2SensorBeginTouchEvent;
