@@ -47,6 +47,7 @@ export
     using ::b2Body_GetUserData;
     using ::b2Body_IsValid;
     using ::b2Body_SetAngularVelocity;
+    using ::b2Body_SetAwake;
     using ::b2Body_SetGravityScale;
     using ::b2Body_SetLinearVelocity;
     using ::b2Body_SetMotionLocks;
