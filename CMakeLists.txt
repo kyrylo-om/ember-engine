@@ -30,6 +30,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(compiler_warnings)
 include(catch2)
 include(raylib)
+include(box2d)
 
 # C++26 contracts check the preconditions of the engine API. They are checked only in Debug
 # builds. Set after the third-party targets, so it applies to Ember code only.
