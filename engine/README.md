@@ -38,6 +38,8 @@ A module also depends on everything its dependencies depend on.
 - Only `platform` uses Raylib. The one exception is `debug`, whose overlay is drawn with
   raygui, a GUI library built on Raylib; it uses them only in its sources.
 - Raylib types never appear in exported declarations.
+- Only `physics` uses Box2D, and only in its sources; Box2D types never appear in exported
+  declarations.
 
 ## Module layout
 

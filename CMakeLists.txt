@@ -45,6 +45,7 @@ add_subdirectory(engine/ecs)
 add_subdirectory(engine/core)
 add_subdirectory(engine/services/platform)
 add_subdirectory(engine/services/debug)
+add_subdirectory(engine/systems/physics)
 add_subdirectory(engine/systems/particles)
 add_subdirectory(engine/systems/render)
 
