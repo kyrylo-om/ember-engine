@@ -16,7 +16,8 @@ enum class ColliderShape
 };
 
 /// Collision shape of an entity, centered on `Transform::position` plus `offset`.
-/// The shape is not rotated or scaled by the `Transform`.
+/// The shape and its offset rotate with `Transform::rotation`; `Transform::scale` does not
+/// change them.
 struct Collider
 {
     /// Kind of shape; only the size field of this kind is used.
