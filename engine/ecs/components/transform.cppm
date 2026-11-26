@@ -14,6 +14,9 @@ struct Transform
     float rotation = 0.0f;
     /// Scale factor on each axis; 1 keeps the original size.
     Vec2 scale{1.0f, 1.0f};
+
+    /// Compares two transforms field by field.
+    constexpr bool operator==(const Transform&) const = default;
 };
 
 } // namespace ember::ecs

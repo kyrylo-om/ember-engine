@@ -35,6 +35,9 @@ struct Collider
     /// Bit mask of the layers the collider collides with. Two colliders collide only if the
     /// layer of each one is in the mask of the other.
     std::uint32_t mask = std::numeric_limits<std::uint32_t>::max();
+
+    /// Compares two colliders field by field.
+    constexpr bool operator==(const Collider&) const = default;
 };
 
 } // namespace ember::ecs

@@ -31,6 +31,9 @@ struct RigidBody
     /// Whether the body keeps its rotation instead of being turned by collisions, for
     /// example a player character that must stay upright.
     bool is_rotation_fixed = false;
+
+    /// Compares two rigid bodies field by field.
+    constexpr bool operator==(const RigidBody&) const = default;
 };
 
 } // namespace ember::ecs

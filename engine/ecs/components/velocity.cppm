@@ -12,6 +12,9 @@ struct Velocity
     Vec2 value{};
     /// Change of `Transform::rotation` in radians per second, clockwise.
     float angular = 0.0f;
+
+    /// Compares two velocities field by field.
+    constexpr bool operator==(const Velocity&) const = default;
 };
 
 } // namespace ember::ecs
