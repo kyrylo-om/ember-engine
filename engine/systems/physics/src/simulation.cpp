@@ -3,6 +3,7 @@
 // and back, and world units to the meters Box2D works in.
 module ember.physics:simulation;
 
+import :events;
 import ember.common;
 import ember.core;
 import ember.ecs;
@@ -26,17 +27,19 @@ public:
 
     // Creates the body of an entity, or passes the changes that the game made to its
     // components since the previous call. Without a Velocity component the velocity of the
-    // body is left to the simulation.
+    // body is left to the simulation. Recreating a body ends its collisions and triggers.
     void sync_body(ecs::Entity entity, const ecs::Transform& transform,
                    const ecs::RigidBody& rigid_body, const ecs::Collider& collider,
-                   const ecs::Velocity* velocity);
+                   const ecs::Velocity* velocity, core::EventBus& events);
 
-    // Destroys the bodies of the entities for which should_remove returns true.
+    // Destroys the bodies of the entities for which should_remove returns true and publishes
+    // the end of their collisions and triggers.
     template <typename Predicate>
-    void remove_bodies_if(Predicate should_remove);
+    void remove_bodies_if(Predicate should_remove, core::EventBus& events);
 
-    // Advances the simulation. Gravity is in world units per second squared.
-    void step(core::Seconds delta, Vec2 gravity, int substep_count);
+    // Advances the simulation and publishes the collisions and triggers that started or ended
+    // in this step. Gravity is in world units per second squared.
+    void step(core::Seconds delta, Vec2 gravity, int substep_count, core::EventBus& events);
 
     // Writes the position, rotation and velocity of a moving body into the components of its
     // entity. Static bodies and entities without a body are left unchanged.
@@ -45,6 +48,9 @@ public:
 private:
     struct Body
     {
+        // The user data of the shape points here, so contact events can name the entity of a
+        // shape. Elements of a std::map never move, so the pointer stays valid.
+        ecs::Entity entity{};
         b2BodyId id{};
         // The components as they were last passed to or written from the simulation. A
         // difference to the current components means that the game changed them.
@@ -57,7 +63,9 @@ private:
     void create_body(ecs::Entity entity, const ecs::Transform& transform,
                      const ecs::RigidBody& rigid_body, const ecs::Collider& collider,
                      const ecs::Velocity& velocity);
-    void destroy_body(const Body& body);
+    void destroy_body(const Body& body, core::EventBus& events);
+    void publish_collision_events(core::EventBus& events);
+    void publish_trigger_events(core::EventBus& events);
 
     b2Vec2 to_meters(Vec2 vector) const;
     Vec2 to_units(b2Vec2 vector) const;
@@ -68,19 +76,24 @@ private:
     // Gravity last given to Box2D; zero until the first step.
     Vec2 m_gravity{};
     std::map<ecs::Entity, Body> m_bodies{};
+    // Pairs of entities whose colliders touch, the smaller entity first. Box2D cannot name the
+    // entities of a destroyed body, so the collisions it ends are taken from here.
+    std::set<std::pair<ecs::Entity, ecs::Entity>> m_collisions{};
+    // Pairs of a trigger and an entity inside it, for the same reason.
+    std::set<std::pair<ecs::Entity, ecs::Entity>> m_trigger_overlaps{};
 };
 
 template <typename Predicate>
-void Simulation::remove_bodies_if(Predicate should_remove)
+void Simulation::remove_bodies_if(Predicate should_remove, core::EventBus& events)
 {
     std::erase_if(m_bodies,
-                  [this, &should_remove](const auto& entry)
+                  [this, &should_remove, &events](const auto& entry)
                   {
                       if (!should_remove(entry.first))
                       {
                           return false;
                       }
-                      destroy_body(entry.second);
+                      destroy_body(entry.second, events);
                       return true;
                   });
 }
@@ -111,6 +124,16 @@ bool has_valid_size(const ecs::Collider& collider)
     return collider.radius > 0.0f;
 }
 
+ecs::Entity entity_of(b2ShapeId shape)
+{
+    return *static_cast<const ecs::Entity*>(b2Shape_GetUserData(shape));
+}
+
+std::pair<ecs::Entity, ecs::Entity> ordered(ecs::Entity first, ecs::Entity second)
+{
+    return {std::min(first, second), std::max(first, second)};
+}
+
 } // namespace
 
 Simulation::Simulation(float units_per_meter) : m_units_per_meter{units_per_meter}
@@ -135,13 +158,14 @@ Simulation::~Simulation()
 Simulation::Simulation(Simulation&& other) noexcept
     : m_world{std::exchange(other.m_world, b2WorldId{})},
       m_units_per_meter{other.m_units_per_meter}, m_gravity{other.m_gravity},
-      m_bodies{std::move(other.m_bodies)}
+      m_bodies{std::move(other.m_bodies)}, m_collisions{std::move(other.m_collisions)},
+      m_trigger_overlaps{std::move(other.m_trigger_overlaps)}
 {
 }
 
 void Simulation::sync_body(ecs::Entity entity, const ecs::Transform& transform,
                            const ecs::RigidBody& rigid_body, const ecs::Collider& collider,
-                           const ecs::Velocity* velocity)
+                           const ecs::Velocity* velocity, core::EventBus& events)
 {
     const auto found = m_bodies.find(entity);
     if (found == m_bodies.end())
@@ -161,7 +185,7 @@ void Simulation::sync_body(ecs::Entity entity, const ecs::Transform& transform,
                 ? *velocity
                 : ecs::Velocity{.value = to_units(b2Body_GetLinearVelocity(body.id)),
                                 .angular = b2Body_GetAngularVelocity(body.id)};
-        destroy_body(body);
+        destroy_body(body, events);
         m_bodies.erase(found);
         create_body(entity, transform, rigid_body, collider, current);
         return;
@@ -182,7 +206,7 @@ void Simulation::sync_body(ecs::Entity entity, const ecs::Transform& transform,
     }
 }
 
-void Simulation::step(core::Seconds delta, Vec2 gravity, int substep_count)
+void Simulation::step(core::Seconds delta, Vec2 gravity, int substep_count, core::EventBus& events)
 {
     contract_assert(delta > core::Seconds::zero());
     contract_assert(substep_count > 0);
@@ -199,6 +223,8 @@ void Simulation::step(core::Seconds delta, Vec2 gravity, int substep_count)
         m_gravity = gravity;
     }
     b2World_Step(m_world, delta.count(), substep_count);
+    publish_collision_events(events);
+    publish_trigger_events(events);
 }
 
 void Simulation::write_body(ecs::Entity entity, ecs::Transform& transform, ecs::Velocity* velocity)
@@ -244,6 +270,14 @@ void Simulation::create_body(ecs::Entity entity, const ecs::Transform& transform
     body_definition.gravityScale = rigid_body.gravity_scale;
     body_definition.motionLocks.angularZ = rigid_body.is_rotation_fixed;
     const b2BodyId id = b2CreateBody(m_world, &body_definition);
+    Body& body = m_bodies
+                     .emplace(entity, Body{.entity = entity,
+                                           .id = id,
+                                           .transform = transform,
+                                           .rigid_body = rigid_body,
+                                           .collider = collider,
+                                           .velocity = velocity})
+                     .first->second;
 
     b2ShapeDef shape_definition = b2DefaultShapeDef();
     // Box2D derives the mass from the density, so the density is chosen to give the mass of
@@ -254,6 +288,10 @@ void Simulation::create_body(ecs::Entity entity, const ecs::Transform& transform
     shape_definition.filter.categoryBits = collider.layer;
     shape_definition.filter.maskBits = collider.mask;
     shape_definition.isSensor = collider.is_trigger;
+    // Both are off by default in Box2D.
+    shape_definition.enableContactEvents = true;
+    shape_definition.enableSensorEvents = true;
+    shape_definition.userData = &body.entity;
 
     const b2Vec2 center = to_meters(collider.offset);
     if (collider.shape == ecs::ColliderShape::Box)
@@ -268,17 +306,106 @@ void Simulation::create_body(ecs::Entity entity, const ecs::Transform& transform
         const b2Circle circle{.center = center, .radius = collider.radius / m_units_per_meter};
         b2CreateCircleShape(id, &shape_definition, &circle);
     }
-
-    m_bodies.insert_or_assign(entity, Body{.id = id,
-                                           .transform = transform,
-                                           .rigid_body = rigid_body,
-                                           .collider = collider,
-                                           .velocity = velocity});
 }
 
-void Simulation::destroy_body(const Body& body)
+void Simulation::destroy_body(const Body& body, core::EventBus& events)
 {
     b2DestroyBody(body.id);
+
+    const ecs::Entity entity = body.entity;
+    const auto involves_entity = [entity](const std::pair<ecs::Entity, ecs::Entity>& pair)
+    {
+        return pair.first == entity || pair.second == entity;
+    };
+    std::erase_if(m_collisions,
+                  [&](const auto& pair)
+                  {
+                      if (!involves_entity(pair))
+                      {
+                          return false;
+                      }
+                      events.publish(CollisionEnded{.first = pair.first, .second = pair.second});
+                      return true;
+                  });
+    std::erase_if(m_trigger_overlaps,
+                  [&](const auto& pair)
+                  {
+                      if (!involves_entity(pair))
+                      {
+                          return false;
+                      }
+                      events.publish(TriggerExited{.trigger = pair.first, .other = pair.second});
+                      return true;
+                  });
+}
+
+void Simulation::publish_collision_events(core::EventBus& events)
+{
+    const b2ContactEvents contacts = b2World_GetContactEvents(m_world);
+
+    for (const b2ContactBeginTouchEvent& begin :
+         std::span{contacts.beginEvents, static_cast<std::size_t>(contacts.beginCount)})
+    {
+        const ecs::Entity first = entity_of(begin.shapeIdA);
+        const ecs::Entity second = entity_of(begin.shapeIdB);
+        if (m_collisions.insert(ordered(first, second)).second)
+        {
+            const b2ContactData contact = b2Contact_GetData(begin.contactId);
+            // Box2D's normal points from shape A to shape B, like the one of the event.
+            events.publish(
+                CollisionStarted{.first = first,
+                                 .second = second,
+                                 .normal = {contact.manifold.normal.x, contact.manifold.normal.y}});
+        }
+    }
+
+    for (const b2ContactEndTouchEvent& end :
+         std::span{contacts.endEvents, static_cast<std::size_t>(contacts.endCount)})
+    {
+        // The shapes of destroyed bodies are no longer valid; their collisions were ended when
+        // the bodies were destroyed.
+        if (!b2Shape_IsValid(end.shapeIdA) || !b2Shape_IsValid(end.shapeIdB))
+        {
+            continue;
+        }
+        const ecs::Entity first = entity_of(end.shapeIdA);
+        const ecs::Entity second = entity_of(end.shapeIdB);
+        if (m_collisions.erase(ordered(first, second)) > 0)
+        {
+            events.publish(CollisionEnded{.first = first, .second = second});
+        }
+    }
+}
+
+void Simulation::publish_trigger_events(core::EventBus& events)
+{
+    const b2SensorEvents sensors = b2World_GetSensorEvents(m_world);
+
+    for (const b2SensorBeginTouchEvent& begin :
+         std::span{sensors.beginEvents, static_cast<std::size_t>(sensors.beginCount)})
+    {
+        const ecs::Entity trigger = entity_of(begin.sensorShapeId);
+        const ecs::Entity other = entity_of(begin.visitorShapeId);
+        if (m_trigger_overlaps.insert({trigger, other}).second)
+        {
+            events.publish(TriggerEntered{.trigger = trigger, .other = other});
+        }
+    }
+
+    for (const b2SensorEndTouchEvent& end :
+         std::span{sensors.endEvents, static_cast<std::size_t>(sensors.endCount)})
+    {
+        if (!b2Shape_IsValid(end.sensorShapeId) || !b2Shape_IsValid(end.visitorShapeId))
+        {
+            continue;
+        }
+        const ecs::Entity trigger = entity_of(end.sensorShapeId);
+        const ecs::Entity other = entity_of(end.visitorShapeId);
+        if (m_trigger_overlaps.erase({trigger, other}) > 0)
+        {
+            events.publish(TriggerExited{.trigger = trigger, .other = other});
+        }
+    }
 }
 
 b2Vec2 Simulation::to_meters(Vec2 vector) const

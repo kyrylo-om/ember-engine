@@ -21,17 +21,19 @@ void step_physics(ecs::World& world)
 {
     const PhysicsSettings& settings = world.resource<PhysicsSettings>();
     Simulation& simulation = world.resource<Simulation>();
+    core::EventBus& events = world.resource<core::EventBus>();
 
-    simulation.remove_bodies_if([&world](ecs::Entity entity) { return !is_body(world, entity); });
+    simulation.remove_bodies_if([&world](ecs::Entity entity) { return !is_body(world, entity); },
+                                events);
     for (auto [entity, transform, rigid_body, collider] :
          world.view<const ecs::Transform, const ecs::RigidBody, const ecs::Collider>())
     {
         simulation.sync_body(entity, transform, rigid_body, collider,
-                             world.try_get<ecs::Velocity>(entity));
+                             world.try_get<ecs::Velocity>(entity), events);
     }
 
     simulation.step(world.resource<core::Time>().fixed_delta, settings.gravity,
-                    settings.substep_count);
+                    settings.substep_count, events);
 
     for (auto [entity, transform, rigid_body, collider] :
          world.view<ecs::Transform, const ecs::RigidBody, const ecs::Collider>())
