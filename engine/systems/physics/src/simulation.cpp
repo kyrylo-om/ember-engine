@@ -4,6 +4,7 @@
 module ember.physics:simulation;
 
 import :events;
+import :raycast_hit;
 import ember.common;
 import ember.core;
 import ember.ecs;
@@ -45,6 +46,14 @@ public:
     // entity. Static bodies and entities without a body are left unchanged.
     void write_body(ecs::Entity entity, ecs::Transform& transform, ecs::Velocity* velocity);
 
+    // Finds the closest collider that is not a trigger on the line between two points in world
+    // units.
+    std::optional<RaycastHit> raycast(Vec2 from, Vec2 to, std::uint32_t mask) const;
+
+    // Applies an impulse to the body of the entity in the next step, after the changes to the
+    // components. The impulse is in kilograms times world units per second.
+    void queue_impulse(ecs::Entity entity, Vec2 impulse);
+
 private:
     struct Body
     {
@@ -81,6 +90,7 @@ private:
     std::set<std::pair<ecs::Entity, ecs::Entity>> m_collisions{};
     // Pairs of a trigger and an entity inside it, for the same reason.
     std::set<std::pair<ecs::Entity, ecs::Entity>> m_trigger_overlaps{};
+    std::vector<std::pair<ecs::Entity, Vec2>> m_impulses{};
 };
 
 template <typename Predicate>
@@ -159,7 +169,8 @@ Simulation::Simulation(Simulation&& other) noexcept
     : m_world{std::exchange(other.m_world, b2WorldId{})},
       m_units_per_meter{other.m_units_per_meter}, m_gravity{other.m_gravity},
       m_bodies{std::move(other.m_bodies)}, m_collisions{std::move(other.m_collisions)},
-      m_trigger_overlaps{std::move(other.m_trigger_overlaps)}
+      m_trigger_overlaps{std::move(other.m_trigger_overlaps)},
+      m_impulses{std::move(other.m_impulses)}
 {
 }
 
@@ -222,6 +233,16 @@ void Simulation::step(core::Seconds delta, Vec2 gravity, int substep_count, core
         }
         m_gravity = gravity;
     }
+
+    for (const auto& [entity, impulse] : m_impulses)
+    {
+        if (const auto found = m_bodies.find(entity); found != m_bodies.end())
+        {
+            b2Body_ApplyLinearImpulseToCenter(found->second.id, to_meters(impulse), true);
+        }
+    }
+    m_impulses.clear();
+
     b2World_Step(m_world, delta.count(), substep_count);
     publish_collision_events(events);
     publish_trigger_events(events);
@@ -250,6 +271,53 @@ void Simulation::write_body(ecs::Entity entity, ecs::Transform& transform, ecs::
         velocity->angular = b2Body_GetAngularVelocity(body.id);
         body.velocity = *velocity;
     }
+}
+
+std::optional<RaycastHit> Simulation::raycast(Vec2 from, Vec2 to, std::uint32_t mask) const
+{
+    if (from == to)
+    {
+        return std::nullopt;
+    }
+
+    // The ray belongs to every layer, so only its own mask decides what it hits.
+    const b2QueryFilter filter{.categoryBits = std::numeric_limits<std::uint64_t>::max(),
+                               .maskBits = mask};
+    b2RayResult closest{};
+    // Box2D calls the function for every collider on the ray. Returning the fraction of the ray
+    // shortens it to that hit, so in the end only the closest one is stored; -1 skips a collider.
+    b2World_CastRay(
+        m_world, to_meters(from), to_meters(to - from), filter,
+        [](b2ShapeId shape, b2Pos point, b2Vec2 normal, float fraction, void* context)
+        {
+            // A fraction of 0 means that the ray starts inside the collider.
+            if (b2Shape_IsSensor(shape) || fraction == 0.0f)
+            {
+                return -1.0f;
+            }
+            b2RayResult& result = *static_cast<b2RayResult*>(context);
+            result.shapeId = shape;
+            result.point = point;
+            result.normal = normal;
+            result.fraction = fraction;
+            result.hit = true;
+            return fraction;
+        },
+        &closest);
+
+    if (!closest.hit)
+    {
+        return std::nullopt;
+    }
+    return RaycastHit{.entity = entity_of(closest.shapeId),
+                      .point = to_units(closest.point),
+                      .normal = {closest.normal.x, closest.normal.y},
+                      .distance = closest.fraction * distance(from, to)};
+}
+
+void Simulation::queue_impulse(ecs::Entity entity, Vec2 impulse)
+{
+    m_impulses.emplace_back(entity, impulse);
 }
 
 void Simulation::create_body(ecs::Entity entity, const ecs::Transform& transform,

@@ -20,10 +20,13 @@ using ember::ecs::Entity;
 using ember::ecs::RigidBody;
 using ember::ecs::Transform;
 using ember::ecs::Velocity;
+using ember::ecs::World;
+using ember::physics::apply_impulse;
 using ember::physics::CollisionEnded;
 using ember::physics::CollisionStarted;
 using ember::physics::PhysicsPlugin;
 using ember::physics::PhysicsSettings;
+using ember::physics::raycast;
 using ember::physics::TriggerEntered;
 using ember::physics::TriggerExited;
 
@@ -436,4 +439,91 @@ TEST_CASE("a body inside a trigger exits it when the body or the trigger is dest
     REQUIRE(physics.events.exited.size() == 1);
     CHECK(physics.events.exited.front().trigger == trigger);
     CHECK(physics.events.exited.front().other == box);
+}
+
+TEST_CASE("a ray hits the closest collider")
+{
+    PhysicsApp physics;
+    const Entity near = physics.add_box({0.0f, 200.0f}, {.type = BodyType::Static});
+    physics.add_box({0.0f, 400.0f}, {.type = BodyType::Static});
+    physics.simulate(step);
+
+    const auto hit = raycast(physics.app.world(), {0.0f, 0.0f}, {0.0f, 1000.0f});
+
+    REQUIRE(hit.has_value());
+    CHECK(hit->entity == near);
+    // The top of the near box, whose center is at 200 and whose height is 40.
+    CHECK(hit->point.x == Approx(0.0f).margin(0.01f));
+    CHECK(hit->point.y == Approx(180.0f).margin(0.01f));
+    CHECK(hit->normal.x == Approx(0.0f).margin(0.01f));
+    CHECK(hit->normal.y == Approx(-1.0f).margin(0.01f));
+    CHECK(hit->distance == Approx(180.0f).margin(0.01f));
+}
+
+TEST_CASE("a ray that passes all colliders hits nothing")
+{
+    PhysicsApp physics;
+    physics.add_box({0.0f, 200.0f}, {.type = BodyType::Static});
+    physics.simulate(step);
+
+    CHECK_FALSE(raycast(physics.app.world(), {100.0f, 0.0f}, {100.0f, 1000.0f}).has_value());
+    // Ends before the box.
+    CHECK_FALSE(raycast(physics.app.world(), {0.0f, 0.0f}, {0.0f, 100.0f}).has_value());
+}
+
+TEST_CASE("a ray passes through triggers and the collider it starts in")
+{
+    PhysicsApp physics;
+    physics.add_trigger({0.0f, 100.0f}, {200.0f, 40.0f});
+    const Entity start = physics.add_box({0.0f, 0.0f}, {.type = BodyType::Static});
+    const Entity wall = physics.add_box({0.0f, 300.0f}, {.type = BodyType::Static});
+    physics.simulate(step);
+
+    const auto hit = raycast(physics.app.world(), {0.0f, 0.0f}, {0.0f, 1000.0f});
+
+    REQUIRE(hit.has_value());
+    CHECK(hit->entity == wall);
+    CHECK(hit->entity != start);
+}
+
+TEST_CASE("a ray hits only the layers in its mask")
+{
+    PhysicsApp physics;
+    const Entity near = physics.add_box({0.0f, 200.0f}, {.type = BodyType::Static});
+    physics.app.world().get<Collider>(near).layer = 2;
+    const Entity far = physics.add_box({0.0f, 400.0f}, {.type = BodyType::Static});
+    physics.simulate(step);
+
+    const auto hit = raycast(physics.app.world(), {0.0f, 0.0f}, {0.0f, 1000.0f}, 1);
+
+    REQUIRE(hit.has_value());
+    CHECK(hit->entity == far);
+}
+
+TEST_CASE("an impulse changes the velocity by the impulse divided by the mass")
+{
+    PhysicsApp physics;
+    const Entity light = physics.add_box({0.0f, 0.0f}, {.mass = 1.0f, .gravity_scale = 0.0f});
+    const Entity heavy = physics.add_box({0.0f, 200.0f}, {.mass = 4.0f, .gravity_scale = 0.0f});
+
+    // Given before the first step, so it also covers bodies created in the same frame.
+    apply_impulse(physics.app.world(), light, {100.0f, 0.0f});
+    apply_impulse(physics.app.world(), heavy, {100.0f, 0.0f});
+    physics.simulate(step);
+
+    CHECK(physics.velocity(light).value.x == Approx(100.0f));
+    CHECK(physics.velocity(heavy).value.x == Approx(25.0f));
+
+    // An impulse is applied once.
+    physics.simulate(step);
+    CHECK(physics.velocity(light).value.x == Approx(100.0f));
+}
+
+TEST_CASE("queries in a world without the physics plugin do nothing")
+{
+    World world;
+    const Entity entity = world.create();
+
+    CHECK_FALSE(raycast(world, {0.0f, 0.0f}, {0.0f, 100.0f}).has_value());
+    CHECK_NOTHROW(apply_impulse(world, entity, {1.0f, 0.0f}));
 }

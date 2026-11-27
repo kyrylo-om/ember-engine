@@ -6,6 +6,7 @@ target_sources(ember_physics
         FILE_SET CXX_MODULES FILES
             physics.cppm
             events.cppm
+            raycast_hit.cppm
     PRIVATE
         # Partition used only inside the module. It is a module unit too, so CMake needs it in a
         # module file set.
