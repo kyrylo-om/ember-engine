@@ -9,6 +9,8 @@ target_sources(ember_assets
             asset_manager.cppm
     PRIVATE
         src/asset_catalog.cpp
+        src/asset_manager.cpp
+        src/assets.cpp
 )
 
 # Public: the interface of the asset manager uses the platform services.
@@ -18,4 +20,5 @@ ember_enable_warnings(ember_assets)
 
 ember_add_tests(assets
     tests/asset_catalog_test.cpp
+    tests/asset_manager_test.cpp
 )
