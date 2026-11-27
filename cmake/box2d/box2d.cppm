@@ -77,6 +77,7 @@ export
     using ::b2Polygon;
     using ::b2Shape_GetBody;
     using ::b2Shape_GetUserData;
+    using ::b2Shape_IsSensor;
     using ::b2Shape_IsValid;
     using ::b2ShapeDef;
     using ::b2ShapeId;
@@ -104,5 +105,6 @@ export
     using ::b2DefaultQueryFilter;
     using ::b2QueryFilter;
     using ::b2RayResult;
+    using ::b2World_CastRay;
     using ::b2World_CastRayClosest;
 }
