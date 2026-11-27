@@ -10,6 +10,7 @@ target_sources(yozakura
 target_link_libraries(yozakura PRIVATE
     ember::core
     ember::particles
+    ember::physics
     ember::platform
 )
 

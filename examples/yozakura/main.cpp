@@ -10,6 +10,7 @@ import ember.common;
 import ember.core;
 import ember.ecs;
 import ember.particles;
+import ember.physics;
 import ember.platform;
 import std;
 
@@ -22,9 +23,13 @@ using ember::core::EventBus;
 using ember::core::Seconds;
 using ember::core::Stage;
 using ember::core::Time;
+using ember::ecs::BodyType;
+using ember::ecs::Collider;
+using ember::ecs::ColliderShape;
 using ember::ecs::Commands;
 using ember::ecs::Emitter;
 using ember::ecs::Entity;
+using ember::ecs::RigidBody;
 using ember::ecs::Transform;
 using ember::ecs::Velocity;
 using ember::ecs::World;
@@ -34,6 +39,7 @@ using ember::platform::Input;
 using ember::platform::Key;
 using ember::platform::Window;
 using yozakura::Frame;
+namespace physics = ember::physics;
 namespace platform = ember::platform;
 
 namespace
@@ -190,8 +196,18 @@ constexpr float gravity = 1700.0f;
 // Part of the upward speed that is kept when the jump key is released early, which makes a
 // short press a low jump.
 constexpr float short_jump_factor = 0.45f;
-constexpr float player_half_width = girl_size.x / 2.0f;
 constexpr float player_ground_y = ground_y - girl_size.y / 2.0f;
+// How far below her feet the ray that looks for the ground reaches.
+constexpr float ground_probe_length = 4.0f;
+// A body resting on the ground can keep a tiny speed from the physics solver, so only faster
+// upward movement counts as rising.
+constexpr float rising_speed = 1.0f;
+
+// The ground and the walls at the edges of the scene are static bodies, thick enough that
+// nothing passes through them, and the walls far higher than she can jump.
+constexpr float ground_thickness = 100.0f;
+constexpr float wall_thickness = 100.0f;
+constexpr float wall_height = scene_size.y * 3.0f;
 
 // A dash is a short rush straight ahead, also in the air. It cannot be repeated at once.
 constexpr float dash_speed = 1000.0f;
@@ -356,6 +372,15 @@ void bind_keys(Input& input)
     input.bind("quit", Key::Escape);
 }
 
+// Adds a static body that the girl cannot pass through.
+void add_obstacle(World& world, Vec2 center, Vec2 size)
+{
+    const Entity obstacle = world.create();
+    world.add<Transform>(obstacle, {.position = center});
+    world.add<RigidBody>(obstacle, {.type = BodyType::Static});
+    world.add<Collider>(obstacle, {.shape = ColliderShape::Box, .size = size});
+}
+
 void create_scene(World& world)
 {
     // Looks at the middle of the scene, like the view the scene is drawn with, so particles
@@ -366,7 +391,18 @@ void create_scene(World& world)
     const Entity player = world.create();
     world.add<Transform>(player, {.position = {scene_size.x / 2.0f, player_ground_y}});
     world.add<Velocity>(player);
+    // She must not tip over. Without friction she neither sticks to a wall she runs into nor
+    // slows down when she lands while running; her speed comes from the keys anyway.
+    world.add<RigidBody>(player, {.friction = 0.0f, .is_rotation_fixed = true});
+    world.add<Collider>(player, {.shape = ColliderShape::Box, .size = girl_size});
     world.add<Player>(player);
+
+    add_obstacle(world, {scene_size.x / 2.0f, ground_y + ground_thickness / 2.0f},
+                 {scene_size.x, ground_thickness});
+    add_obstacle(world, {-wall_thickness / 2.0f, scene_size.y / 2.0f},
+                 {wall_thickness, wall_height});
+    add_obstacle(world, {scene_size.x + wall_thickness / 2.0f, scene_size.y / 2.0f},
+                 {wall_thickness, wall_height});
 
     constexpr Vec2 tree_crown{830.0f, 230.0f};
     const Entity tree_petals = world.create();
@@ -485,7 +521,8 @@ void handle_keys(World& world)
         }
         if (player.dash_remaining > Seconds::zero())
         {
-            // A dash goes the way she faces and ignores the keys and gravity until it ends.
+            // A dash goes the way she faces and ignores the keys until it ends. Its vertical
+            // speed is reset every frame, so gravity bends it only by a few pixels.
             velocity.value = {player.is_facing_left ? -dash_speed : dash_speed, 0.0f};
         }
     }
@@ -497,26 +534,19 @@ void handle_keys(World& world)
     }
 }
 
-// Runs with a fixed time step, so a jump is equally high at any frame rate.
-void move_player(World& world)
+// A short ray from her center down past her feet tells whether she stands on something. It
+// does not hit her own collider, because it starts inside it. While she moves up she has just
+// jumped, even if the ground is still within reach of the ray.
+void find_ground(World& world)
 {
-    const float dt = world.resource<Time>().fixed_delta.count();
-    for (auto [entity, player, transform, velocity] : world.view<Player, Transform, Velocity>())
+    for (auto [entity, player, transform, velocity] :
+         world.view<Player, const Transform, const Velocity>())
     {
-        if (player.dash_remaining == Seconds::zero())
-        {
-            velocity.value.y += gravity * dt;
-        }
-        transform.position += velocity.value * dt;
-
-        if (transform.position.y >= player_ground_y)
-        {
-            transform.position.y = player_ground_y;
-            velocity.value.y = 0.0f;
-            player.is_on_ground = true;
-        }
-        transform.position.x =
-            std::clamp(transform.position.x, player_half_width, scene_size.x - player_half_width);
+        const Vec2 below_feet =
+            transform.position + Vec2{0.0f, girl_size.y / 2.0f + ground_probe_length};
+        const bool is_rising = velocity.value.y < -rising_speed;
+        player.is_on_ground =
+            !is_rising && physics::raycast(world, transform.position, below_feet).has_value();
     }
 }
 
@@ -1255,8 +1285,10 @@ int main()
                        world.insert_resource(Game{});
                        create_scene(world);
                    });
+    app.add_system(Stage::PreUpdate, "find_ground", find_ground);
     app.add_system(Stage::PreUpdate, "handle_keys", handle_keys);
-    app.add_system(Stage::FixedUpdate, "move_player", move_player);
+    // Gravity, the ground and the walls move the girl; the keys only set her velocity.
+    app.add_plugin(physics::PhysicsPlugin{.settings = {.gravity = {0.0f, gravity}}});
     app.add_system(Stage::Update, "leave_afterimages", leave_afterimages);
     app.add_system(Stage::Update, "move_spirits", move_spirits);
     app.add_system(Stage::Update, "spawn_spirits", spawn_spirits);
