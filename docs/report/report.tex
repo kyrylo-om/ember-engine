@@ -70,15 +70,15 @@ Ember is a minimalistic 2D game framework written in C++26. It is built from C++
 and follows the entity component system (ECS) pattern: game objects are entities, their data are components, and their behaviour is
 written as systems that run in fixed stages of every frame. This report describes the
 current state of the project. The ECS, the main loop with a fixed time step, the event
-bus, logging, the platform layer over Raylib and a particle system simulated with
-\code{std::simd} are implemented and covered by 134 unit tests. A sample game, Yozakura,
-runs on these modules. Benchmarks show that the engine itself adds about 0.1~\textmu s
-per frame and that one million particles are simulated in about 1~ms. Rendering, physics,
-assets and debug tools are not implemented yet.
+bus, logging, the platform layer over Raylib, physics over Box2D, embedded assets and a
+particle system simulated with \code{std::simd} are implemented and covered by 173 unit
+tests. A sample game, Yozakura, runs on these modules. Benchmarks show that the engine
+itself adds about 0.1~\textmu s per frame and that one million particles are simulated in
+about 1~ms. Rendering and debug tools are not implemented yet.
 \end{abstract}
 
 \begin{IEEEkeywords}
-C++26, game engine, entity component system, C++ modules, SIMD, benchmarks
+C++26, game engine, entity component system, C++ modules, SIMD, physics, benchmarks
 \end{IEEEkeywords}
 
 \section{Introduction}
@@ -103,6 +103,7 @@ CMake presets define a Debug and a Release build; one command,
 Other C++26 and C++23 features used in the code:
 \begin{itemize}
     \item \code{std::simd}~\cite{simd} for the particle simulation;
+    \item \code{\#embed} for building asset files into the executable;
     \item contracts~\cite{contracts}, which check preconditions of the engine API in Debug
           builds and are switched off in Release builds;
     \item \code{std::expected} for errors, for example when an image cannot be decoded;
@@ -110,7 +111,8 @@ Other C++26 and C++23 features used in the code:
 \end{itemize}
 
 Windows, drawing, audio and input are provided by Raylib~6.0~\cite{raylib} through its
-C++ wrapper raylib-cpp~\cite{raylibcpp}. Unit tests and benchmarks use Catch2~\cite{catch2}.
+C++ wrapper raylib-cpp~\cite{raylibcpp}, and physics by Box2D~3.2~\cite{box2d}. CMake
+downloads both on the first configure. Unit tests and benchmarks use Catch2~\cite{catch2}.
 All warnings are enabled and treated as errors, and code is formatted with clang-format.
 Two scripts help during development: \code{run.sh} builds and starts an example, and
 \code{benchmark.sh} builds and runs the benchmarks.
@@ -131,8 +133,9 @@ modules below it, so lower layers know nothing about higher ones:
           \code{particles} and \code{render}.
 \end{itemize}
 Services and systems do not depend on each other, except on \code{platform} for drawing
-and audio. Only \code{platform} uses Raylib, and Raylib types never appear in exported
-declarations. Thus the rest of the engine does not depend on the graphics library.
+and audio. Only \code{platform} uses Raylib and only \code{physics} uses Box2D, and their
+types never appear in exported declarations. Thus the rest of the engine does not depend
+on these libraries.
 
 \begin{figure}[htbp]
 \centering
@@ -141,14 +144,13 @@ declarations. Thus the rest of the engine does not depend on the graphics librar
                 font=\footnotesize, inner sep=2pt},
     done/.style={box, fill=green!15},
     iface/.style={box, fill=yellow!20, dashed},
-    planned/.style={box, fill=gray!10, dotted, thick},
     node distance=0.25cm and 0.15cm]
     \node[done, minimum width=8.2cm] (game) {sample game: \code{yozakura}};
     \node[done, minimum width=1.25cm, below=0.35cm of game.south west, anchor=north west]
         (platform) {platform};
-    \node[planned, minimum width=1.25cm, right=of platform] (assets) {assets};
+    \node[done, minimum width=1.25cm, right=of platform] (assets) {assets};
     \node[iface, minimum width=1.25cm, right=of assets] (debug) {debug};
-    \node[planned, minimum width=1.25cm, right=of debug] (physics) {physics};
+    \node[done, minimum width=1.25cm, right=of debug] (physics) {physics};
     \node[done, minimum width=1.25cm, right=of physics] (particles) {particles};
     \node[iface, minimum width=1.25cm, right=of particles] (render) {render};
     \node[done, minimum width=8.2cm, below=0.35cm of platform.south west, anchor=north west]
@@ -162,8 +164,6 @@ declarations. Thus the rest of the engine does not depend on the graphics librar
     \node[font=\scriptsize, right=0.05cm of k1] (l1) {implemented};
     \node[iface, minimum width=0.4cm, minimum height=0.3cm, right=0.3cm of l1] (k2) {};
     \node[font=\scriptsize, right=0.05cm of k2] (l2) {interface only};
-    \node[planned, minimum width=0.4cm, minimum height=0.3cm, right=0.3cm of l2] (k3) {};
-    \node[font=\scriptsize, right=0.05cm of k3] {planned};
 \end{tikzpicture}
 \caption{Layers of Ember and the state of each module. A module uses only the layers
 below it.}
@@ -248,6 +248,30 @@ uses the same index and generation idea as an entity, so a handle to an unloaded
 is detected and ignored. The \code{PlatformPlugin} adds systems that read input and
 begin and end the frame of drawing.
 
+\subsection{Assets}
+
+Asset files are built into the executable with \code{\#embed}, so a game needs no files
+next to it. The game registers the bytes of every file under its name in the
+\code{AssetCatalog}. The \code{AssetManager} loads a file as a texture, sound, music or
+font through \code{platform}, choosing the format by the file extension, and caches the
+handle by name, so a second load does not decode the file again. Loading returns
+\code{std::expected} with a handle or an \code{AssetError}, such as \code{NotFound} or
+\code{InvalidData}.
+
+\subsection{Physics}
+
+The \code{physics} module simulates every entity that has a \code{Transform}, a
+\code{RigidBody} and a \code{Collider}. Bodies are static, dynamic or kinematic, with box
+or circle shapes. The simulation is done by Box2D, a C library, which we wrap in a small
+C++ module \code{box2d} that exports the Box2D functions the engine uses. The
+\code{PhysicsPlugin} steps the simulation in \code{FixedUpdate}. Before a step it passes to
+Box2D the components that the game has changed, found by comparing them with their copies
+from the previous step; after the step it writes positions, rotations and velocities back.
+Box2D works in meters, so world units are converted with a scale, by default 100 units per
+meter. Contacts become \code{CollisionStarted}, \code{CollisionEnded},
+\code{TriggerEntered} and \code{TriggerExited} events on the event bus. The module also
+offers \code{raycast()} and \code{apply\_impulse()}.
+
 \subsection{Particles}
 
 An \code{Emitter} component describes particles: how many per second, their lifetime,
@@ -291,47 +315,29 @@ drawn by the particle system.}
 \label{fig:game}
 \end{figure}
 
-The game has no asset files. Because the \code{assets} module is not ready, all images
-are drawn pixel by pixel in code, and all sounds and the music are computed as waves and
-packed into WAV files in memory. They are loaded through the same \code{platform}
-functions that would load real files. The game is about 2100 lines in three modules.
+The girl is a dynamic body that does not rotate, and the ground and the walls are static
+bodies; a short ray below her feet tells whether she stands on the ground. The game has no
+asset files yet: all images are drawn pixel by pixel in code, and the sounds and the music
+are computed as waves and packed into WAV files in memory. The game is about 2200 lines in
+three modules.
 Its \code{main} function shows how a game uses the engine:
 \begin{codeblock}
 Application app;
 app.add_plugin(platform::PlatformPlugin{...});
-app.add_system(Stage::FixedUpdate, "move_player",
-               move_player);
-app.add_system(Stage::Update, "catch_spirits",
-               catch_spirits);
-// ... ten more systems
+app.add_system(Stage::PreUpdate, "handle_keys",
+               handle_keys);
+app.add_plugin(physics::PhysicsPlugin{...});
+// ... twelve more systems
 app.add_plugin(particles::ParticlePlugin{});
 app.run();
 \end{codeblock}
 
 \section{Testing}
 
-Every implemented module has unit tests (Table~\ref{tab:tests}). Tests run in both
-builds: in Debug the contracts are checked as well. Tests that need a window or an audio
-device are skipped on a computer without them. All 134 test cases pass.
-
-\begin{table}[htbp]
-\caption{Unit Tests per Module}
-\label{tab:tests}
-\centering
-\footnotesize
-\begin{tabular}{@{}lr@{}}
-\toprule
-\textbf{Module} & \textbf{Test cases} \\
-\midrule
-\code{ecs} & 39 \\
-\code{core} & 45 \\
-\code{platform} & 22 \\
-\code{particles} & 28 \\
-\midrule
-Total & 134 \\
-\bottomrule
-\end{tabular}
-\end{table}
+Every implemented module has unit tests: \code{ecs} has 39 test cases, \code{core} 45,
+\code{platform} 22, \code{assets} 12, \code{physics} 27 and \code{particles} 28. Tests run
+in both builds: in Debug the contracts are checked as well. Tests that need a window or an
+audio device are skipped on a computer without them. All 173 test cases pass.
 
 \section{Benchmarks}
 
@@ -452,25 +458,24 @@ C++26 support in GCC~16 is new, and we met several problems:
           in the Release build; we replaced it with a vector constructor.
     \item Raylib crashed when it was given invalid font data, so \code{platform} checks the
           tables of a font file before passing it to Raylib.
+    \item Macros and \code{static const} values of the Box2D header cannot be exported
+          from a module, so the \code{box2d} module exports only functions and types, and
+          a null id is written as a value-initialized \code{b2BodyId\{\}}.
 \end{itemize}
 
 \section{Current State and Future Work}
 
-The base of the engine works: \code{ecs}, \code{core}, \code{platform} and
-\code{particles} are implemented and tested, and the sample game runs on them. The
-following work remains:
+The base of the engine works: \code{ecs}, \code{core}, \code{platform}, \code{assets},
+\code{physics} and \code{particles} are implemented and tested, and the sample game runs
+on them. The following work remains:
 \begin{itemize}
     \item \code{render}: drawing \code{Sprite} components with a camera, culling and
           layers. Its interface is written; today the game draws its scene itself.
     \item \code{debug}: an in-game overlay, a console and an entity inspector. Its
           interface is written.
-    \item \code{physics}: rigid bodies, box and circle colliders and collision events.
-          Today the game moves its objects in its own systems.
-    \item \code{assets}: assets built into the executable with \code{\#embed}, and
-          loading and saving of scenes.
-    \item Reflection helpers, which convert components to and from JSON with C++26
-          reflection, and the component registry that uses them. Their interfaces are
-          written.
+    \item Loading and saving of scenes, with reflection helpers that convert components
+          to and from JSON with C++26 reflection. Their interfaces are written.
+    \item Assets of the sample game as real files loaded through \code{assets}.
     \item A parallel scheduler with \code{std::execution}: systems will declare which
           components they read and write, and systems that do not conflict will run at
           the same time.
@@ -481,8 +486,8 @@ following work remains:
 
 Ember shows that a small game framework can be built with C++26 modules and the newest
 standard library features on the current GCC. The ECS, the main loop, the event bus, the
-platform layer and the particle system work together in a playable game and are covered by
-134 unit tests. The benchmarks show that the cost of the engine itself is very small and
+platform layer, physics, assets and the particle system work together in a playable game
+and are covered by 173 unit tests. The benchmarks show that the cost of the engine itself is very small and
 that explicit SIMD code keeps the particle simulation fast regardless of compiler options.
 The next steps are the remaining modules and parallel execution of systems.
 
@@ -502,6 +507,8 @@ BDD.'' [Online]. Available: \url{https://github.com/catchorg/Catch2}
 TS~2,'' ISO/IEC JTC1/SC22/WG21, P1928.
 \bibitem{contracts} J. Berne, T. Doumler, and A. Krzemie\'nski, ``Contracts for C++,''
 ISO/IEC JTC1/SC22/WG21, P2900.
+\bibitem{box2d} E. Catto, ``Box2D: a 2D physics engine for games.'' [Online].
+Available: \url{https://box2d.org}
 \bibitem{entt} M. Caini, ``EnTT: a fast and reliable entity component system.''
 [Online]. Available: \url{https://github.com/skypjack/entt}
 \bibitem{bevy} ``Bevy: a refreshingly simple data-driven game engine built in Rust.''
