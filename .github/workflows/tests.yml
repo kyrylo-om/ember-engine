@@ -1,0 +1,37 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: build and test (${{ matrix.preset }})
+    runs-on: ubuntu-latest
+    # The Ubuntu runners do not ship GCC 16, the official GCC image does
+    container: gcc:16
+    env:
+      # apt-get has no terminal in the container and would try to ask questions
+      DEBIAN_FRONTEND: noninteractive
+    strategy:
+      fail-fast: false
+      matrix:
+        # Debug checks the contracts, Release runs the optimized code
+        preset: [debug, release]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ninja-build libx11-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev
+          curl -fsSL https://github.com/Kitware/CMake/releases/download/v4.2.3/cmake-4.2.3-linux-x86_64.tar.gz \
+            | tar -xz --strip-components=1 -C /usr/local
+          # The presets call the compiler g++-16, the image installs it as g++
+          ln -s "$(command -v g++)" /usr/local/bin/g++-16
+
+      - name: Configure, build and test
+        run: cmake --workflow --preset ${{ matrix.preset }}
